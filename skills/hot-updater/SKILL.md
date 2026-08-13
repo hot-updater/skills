@@ -1,9 +1,6 @@
 ---
 name: hot-updater
-description: Use when working with Hot Updater CLI setup, deployment, patch artifacts, bundle inventory/state, rollback, channels, code signing keys, database migration, diagnostics, or AI-assisted React Native OTA operations.
-metadata:
-  author: hot-updater
-  version: "1.0.0"
+description: Use when working with Hot Updater CLI setup, deployment, patch artifacts, bundle inventory/state, storage cleanup, rollback, channels, code signing keys, database migration, diagnostics, or AI-assisted React Native OTA operations.
 ---
 
 # Hot Updater CLI
@@ -34,8 +31,9 @@ or diagnostics.
   variables, and redeploy access; summarize the blocker instead of running
   migrations or mutating provider setup.
 - Treat `deploy`, `patch`, `bundle enable`, `bundle disable`, `bundle update`,
-  `bundle delete`, `bundle promote`, `rollback`, `channel set`, `keys
-  export-public`, `keys remove`, and `db migrate` as state-changing operations.
+  `bundle delete`, `bundle promote`, `storage prune --yes`, `rollback`,
+  `channel set`, `keys export-public`, `keys remove`, and `db migrate` as
+  state-changing operations.
 - Treat `keys generate` and `db generate` as local file/artifact writing
   operations.
 - Use `--json` only with commands documented here as supporting it. For
@@ -46,6 +44,10 @@ or diagnostics.
   exact mutation and the target is unambiguous.
 - After mutating bundle state, verify with `bundle list` or the relevant
   provider state.
+- Treat an unqualified storage cleanup request as authorization for
+  `storage prune --dry-run` only. Run `storage prune --yes` only when the user
+  explicitly requests deletion, the current database owns the entire storage
+  prefix, and deploy and promote writers are stopped.
 - If `deploy` fails, stop the deploy workflow. Do not keep retrying fixes,
   edit setup, change credentials, install dependencies, or run migrations
   unless the user explicitly asks for that follow-up. Analyze only the failed
@@ -65,6 +67,8 @@ $hot-updater roll back the most recently deployed bundle
 $hot-updater list iOS bundles on the production channel
 $hot-updater update rollout cohort count for bundle <bundle-id> to 500
 $hot-updater promote bundle <bundle-id> to staging
+$hot-updater preview unreferenced storage objects
+$hot-updater delete old production iOS bundles and prune their storage
 $hot-updater create a patch from bundle <old-id> to <new-id>
 $hot-updater export the code signing public key
 $hot-updater run doctor with server URL https://updates.example.com/api/check-update
@@ -199,6 +203,7 @@ Important options:
 ```sh
 npx hot-updater bundle list
 npx hot-updater bundle list -c production -p ios --limit 10
+npx hot-updater bundle list -c production -p ios --target-app-version 1.0.0 --json
 npx hot-updater bundle list -c production -p ios --limit 10 --json
 npx hot-updater bundle list --json
 npx hot-updater bundle show <bundle-id>
@@ -210,24 +215,53 @@ npx hot-updater bundle update <bundle-id> --force-update true --json
 npx hot-updater bundle update <bundle-id> --target-cohorts 1,2,3
 npx hot-updater bundle update <bundle-id> --clear-target-cohorts
 npx hot-updater bundle delete <bundle-id>
+npx hot-updater bundle delete <bundle-id> <another-bundle-id> -y
 npx hot-updater bundle promote <bundle-id> -t staging
 npx hot-updater bundle promote <bundle-id> -t staging -a move
 ```
 
 - `bundle list` shows the most recent bundles first.
 - `bundle list --limit <n>` defaults to `20`.
+- `bundle list --target-app-version <version>` filters by an exact target app
+  version.
 - `--json` is available for `bundle list`, `bundle show`, and `bundle update`
   on CLIs that support it.
 - `bundle disable` and `bundle enable` read the bundle, mutate enabled state,
   commit the change, then re-read to verify.
 - `bundle update` can set rollout cohort count from `0` to `1000`, force update
   metadata, and target cohorts.
-- `bundle delete` removes the bundle record by id.
+- `bundle delete` removes one or more bundle records by id. It does not delete
+  shared assets or bundle objects from storage.
 - `bundle promote` copies to a target channel by default. Use `-a move` only
   when the user explicitly wants to keep the same bundle id and move channels.
 - In CI or other non-interactive shells, pass `-y` to `enable` or `disable`.
   Also pass `-y` to `update`, `delete`, or `promote` only when the requested
   mutation target is unambiguous.
+
+### Storage Maintenance
+
+```sh
+npx hot-updater storage prune --dry-run
+npx hot-updater storage prune --dry-run --protect-newer-than 7d
+npx hot-updater storage prune --protect-newer-than 24h --yes
+```
+
+- `storage prune` is reference-aware garbage collection, not a retention
+  policy. Delete explicitly selected bundle records first when the user wants
+  to reclaim their files.
+- Always run the explicit `--dry-run` form and review the eligible object list
+  before deletion. Without `--yes`, the command does not delete objects.
+- `--protect-newer-than` defaults to `24h` and accepts `m`, `h`, `d`, or `w`.
+  It compares object modification time, not time since a bundle record was
+  deleted. Objects without a modification timestamp remain protected.
+- `--yes` can remove orphaned legacy or `bundles/<bundle-id>` bundle objects and
+  unreferenced `assets/sha256` assets. It preserves live references and unknown
+  files, and reloads references before deletion.
+- Before `--yes`, stop deploy and promote operations using the same prefix. If
+  databases or environments share a bucket, require a distinct storage
+  `basePath` for each one.
+- Storage pruning currently requires `s3Storage` management capabilities for
+  AWS S3 or an S3-compatible service.
 
 ### Rollback
 
