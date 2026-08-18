@@ -1,326 +1,135 @@
 ---
 name: hot-updater
-description: Use when working with Hot Updater CLI setup, deployment, patch artifacts, bundle inventory/state, storage cleanup, rollback, channels, code signing keys, database migration, diagnostics, or AI-assisted React Native OTA operations.
+description: Operate and diagnose Hot Updater CLI projects across legacy Bundle-policy and Release Catalog versions. Use for setup, deployment, rollout, rollback, promotion, Bundle and Release inspection, patch artifacts, storage cleanup, channels, signing keys, database migration, fingerprints, doctor repair, or other React Native OTA tasks. Discover the locally installed CLI command surface from just-in-time `--help` output instead of assuming a Hot Updater version or memorizing commands and options.
 ---
 
 # Hot Updater CLI
 
-Use this skill when a task involves Hot Updater's CLI, `hot-updater.config.ts`,
-React Native OTA deployment, patch artifacts, bundle operations, rollback,
-release-channel management, code signing keys, database migration, fingerprints,
-or diagnostics.
+Treat the target project's locally installed CLI as the source of truth. Keep
+this skill focused on discovery, ownership, and safety rather than duplicating
+the CLI reference.
 
-## Operating Rules
+## Pin the target CLI
 
-- Start from the project root unless the user specifies another app directory.
-- Read local `hot-updater.config.ts` before assuming provider behavior.
-- Use `npx hot-updater ...` for CLI examples and user-facing instructions.
-- Do not run `npx hot-updater init` on behalf of the user. It is interactive
-  and asks for provider, build, and project-specific choices. Guide the user to
-  run it directly and follow the setup documentation.
-- Before running `npx hot-updater doctor` for a server/infrastructure check,
-  make sure the server base URL is available. If the user did not provide it
-  and it is not obvious from local config, ask for the update server URL first.
-- For doctor repair loops, run `npx hot-updater doctor --json` first. Fix
-  issues marked `fixability: "auto"` by editing local project files, run the
-  listed `commands` for issues marked `fixability: "command"`, and rerun doctor
-  after each focused change. Stop when doctor passes or the remaining issues are
-  marked `fixability: "blocked"`.
-- Treat `fixability: "blocked"` as outside the autonomous local loop. Server
-  infrastructure remediation commonly needs provider credentials, environment
-  variables, and redeploy access; summarize the blocker instead of running
-  migrations or mutating provider setup.
-- Treat `deploy`, `patch`, `bundle enable`, `bundle disable`, `bundle update`,
-  `bundle delete`, `bundle promote`, `storage prune --yes`, `rollback`,
-  `channel set`, `keys export-public`, `keys remove`, and `db migrate` as
-  state-changing operations.
-- Treat `keys generate` and `db generate` as local file/artifact writing
-  operations.
-- Use `--json` only with commands documented here as supporting it. For
-  mutating commands, `--json` only changes the output format after the requested
-  mutation has already been authorized. If a target project uses an older CLI
-  without that option, fall back to the human-readable output.
-- For non-interactive shells, use `-y` only when the user already requested the
-  exact mutation and the target is unambiguous.
-- After mutating bundle state, verify with `bundle list` or the relevant
-  provider state.
-- Treat an unqualified storage cleanup request as authorization for
-  `storage prune --dry-run` only. Run `storage prune --yes` only when the user
-  explicitly requests deletion, the current database owns the entire storage
-  prefix, and deploy and promote writers are stopped.
-- If `deploy` fails, stop the deploy workflow. Do not keep retrying fixes,
-  edit setup, change credentials, install dependencies, or run migrations
-  unless the user explicitly asks for that follow-up. Analyze only the failed
-  command, relevant output, likely cause, and suggested next checks.
-- Do not edit provider credentials unless the user explicitly asks. Credentials
-  are commonly stored in `.env.hotupdater`, but projects may use a different
-  environment-loading setup.
+1. Start at the target project root unless the user specifies another app.
+2. Read `package.json`, its package-manager declaration, its lockfile, and
+   `hot-updater.config.ts` when present.
+3. Resolve the project-local `hot-updater` binary with the project's package
+   manager. Examples include `pnpm exec hot-updater` and
+   `npx --no-install hot-updater`. Store that complete invocation as `<cli>`.
+4. Do not use a global binary. Do not let `npx`, `bunx`, or another executor
+   download a missing or newer CLI implicitly.
+5. If no local CLI can be resolved, stop and report that discovery is blocked.
+   Do not install or upgrade Hot Updater without explicit authorization.
+6. Run `<cli> --version` for reporting only. Never select a workflow from the
+   version string.
 
-## Natural Language Requests
+## Discover commands just in time
 
-Users may invoke this skill with prompts such as:
+Run `<cli> --help` before planning a CLI workflow. Before invoking any nested
+command, run `--help` at that exact command path as well.
 
-```txt
-$hot-updater deploy using the current app version
-$hot-updater deploy the current iOS app version to production
-$hot-updater roll back the most recently deployed bundle
-$hot-updater list iOS bundles on the production channel
-$hot-updater update rollout cohort count for bundle <bundle-id> to 500
-$hot-updater promote bundle <bundle-id> to staging
-$hot-updater preview unreferenced storage objects
-$hot-updater delete old production iOS bundles and prune their storage
-$hot-updater create a patch from bundle <old-id> to <new-id>
-$hot-updater export the code signing public key
-$hot-updater run doctor with server URL https://updates.example.com/api/check-update
-$hot-updater fix local doctor issues that do not require server credentials
+```text
+<cli> --help
+<cli> <group> --help
+<cli> <group> <command> --help
 ```
 
-Translate the request into the safest CLI flow. If a state-changing request is
-missing a required channel, platform, bundle target, patch base, destination
-channel, or server URL that cannot be inferred from local context, ask one
-concise question before mutating anything. For deploy and patch channel, use the
-CLI default `production` unless the user names another channel or local context
-clearly indicates one.
+Use the generated help as the syntax contract:
 
-### Current App Version Deploy
+- Read command and option tokens semantically. Do not parse column positions,
+  whitespace, wrapping, ordering, or prose with a fixed regular expression.
+- Use only arguments and options shown by the target command's current help.
+- Treat required arguments, accepted values, and displayed defaults as local
+  to that CLI. Do not carry them over from another project or earlier run.
+- Use `--json`, `-y`/`--yes`, `--dry-run`, `preflight`, filters, or limits only
+  when the exact command help exposes them.
+- Treat JSON output dynamically. Do not assume a field exists merely because a
+  different Hot Updater version returned it.
+- If a command or option is absent, adapt to an available safe workflow or
+  report the missing capability. Never silently install a different version.
+- Repeat exact-command help discovery after the dependency or lockfile changes.
 
-When the user asks to deploy for the current app version:
+Help probes are read-only. Run them freely before asking the user for mutation
+approval.
 
-1. Run `npx hot-updater app-version --json` when supported; otherwise run
-   `npx hot-updater app-version`.
-2. Extract `ios` and/or `android` from JSON when available, or from the
-   human-readable output as a fallback.
-3. If the platform is missing, ask whether to deploy iOS, Android, or both.
-4. Deploy with `-t <version>`:
+## Select the ownership model by capability
 
-```sh
-npx hot-updater deploy -p ios -t <ios-app-version>
-npx hot-updater deploy -p android -t <android-app-version>
-```
+Probe capabilities rather than comparing semantic versions.
 
-If deploying both platforms, run one platform at a time and verify each result
-with `npx hot-updater bundle list -p <platform> --limit 5 --json` when
-supported, or without `--json` as a fallback.
+### Release Catalog model
 
-If a deploy command fails, do not continue to the next platform or attempt an
-automatic repair. Report the failure analysis and wait for a new user request.
+Select this model when the top-level help exposes `release` and
+`<cli> release --help` succeeds.
 
-### Recent Bundle Rollback
+- Release owns channel delivery policy, enablement, rollout, targeting,
+  chronology, and promotion.
+- Bundle is an immutable install artifact and native crash identity.
+- For rollback intent, inspect Releases, identify the exact affected Release,
+  read the disable command help, and disable that Release. Do not infer a policy
+  mutation from Bundle identity.
+- For promotion, use the Release promotion capability shown by help. Expect a
+  new Release that can reuse the source Bundle, then verify both source and
+  target policy.
+- For cleanup, remove Release references before deleting an unreferenced Bundle,
+  then preview Storage pruning when that capability exists.
 
-When the user asks to roll back the most recent deployment without naming a
-bundle:
+### Legacy Bundle-policy model
 
-1. Run `npx hot-updater bundle list --json --limit 10`.
-2. Choose the most recent enabled bundle from the JSON result.
-3. Use that bundle's `channel`, `platform`, and `id` for a scoped rollback:
+Select this model when Release commands are absent and Bundle help exposes
+policy mutations or the top-level help exposes rollback.
 
-```sh
-npx hot-updater rollback <channel> -p <platform> --target <bundle-id> -y
-```
+- Bundle rows own delivery policy as well as artifact identity.
+- Use only the Bundle policy commands exposed by `<cli> bundle --help`.
+- For rollback intent, prefer the rollback command when exposed. Read its exact
+  help before selecting channel, platform, or target arguments.
+- For promotion, use the Bundle promotion capability shown by help and verify
+  the resulting Bundle state.
+- For cleanup, delete eligible Bundle records before previewing Storage pruning.
 
-If the most recent bundle is already disabled, tell the user and ask whether to
-roll back the next enabled bundle. After rollback, verify with:
+If both models appear or a required subcommand is missing, exact-command help
+wins. Do not guess across models before a mutation.
 
-```sh
-npx hot-updater bundle list -c <channel> -p <platform> --limit 5 --json
-```
+## Execute requests safely
 
-If `--json` is unavailable, rerun the same command without `--json`.
+For every request:
 
-## Core Commands
+1. Classify it as read-only, local file writing, or external mutation.
+2. Discover top-level and exact-command help.
+3. Read current state with the available list/show/doctor command and supported
+   filters. Prefer JSON only when help offers it.
+4. Resolve an exact target. Ask one concise question if channel, platform,
+   Release, Bundle, patch base, destination, or server URL remains ambiguous.
+5. Use a displayed preview, preflight, or dry-run capability when available.
+6. Execute only the mutation the user authorized. Use a displayed noninteractive
+   confirmation flag only after the target and consequence are unambiguous.
+7. Verify with a help-discovered read command. Do not assume the mutation's
+   output schema.
 
-### Setup and Diagnostics
+Treat deploy, patch creation, policy changes, rollback, promotion, record
+deletion, destructive pruning, channel changes, key export/removal, and database
+migration as mutations. Treat key generation and schema generation as local
+file writes.
 
-```sh
-npx hot-updater init
-npx hot-updater doctor --server-base-url <update-server-url>
-npx hot-updater doctor --json
-npx hot-updater doctor --server-base-url <update-server-url> --json
-npx hot-updater fingerprint
-npx hot-updater fingerprint create
-npx hot-updater app-version
-npx hot-updater app-version --json
-npx hot-updater console
-```
+## Invariant guardrails
 
-- `init` creates or updates project configuration. Because it is interactive,
-  tell the user to run it directly instead of choosing answers for them.
-- `doctor` checks local setup and server health. Provide `--server-base-url`;
-  the command appends `/version` for the server check. If the user has not
-  provided one, ask for it before running the command.
-- `doctor --json` is the preferred agent surface. It returns stable issue
-  codes, related paths, `fixability`, and command hints for local iterative
-  repair. Do not parse the human-readable doctor output when JSON is available.
-- `fingerprint` and `fingerprint create` generate the app fingerprint.
-- `app-version` reads native iOS and Android app versions. `--json` returns
-  `{ "android": string | null, "ios": string | null }` on CLIs that support it.
-- `console` opens the local management console.
-
-### Deploy
-
-```sh
-npx hot-updater deploy -p <ios|android>
-npx hot-updater deploy -p ios -c production -r 25
-npx hot-updater deploy -p android -f
-npx hot-updater deploy -p ios -d
-npx hot-updater deploy -p ios -o ./hot-updater-output
-```
-
-Important options:
-
-| Option | Meaning |
-| --- | --- |
-| `-p, --platform <platform>` | Target `ios` or `android`. |
-| `-c, --channel <channel>` | Release channel, default `production`. |
-| `-t, --target-app-version <range>` | App version range such as `1.2.3` or `1.x.x`. |
-| `-r, --rollout <percentage>` | Initial rollout percentage from `0` to `100`. |
-| `-f, --force-update` | Apply immediately on client update. |
-| `-d, --disabled` | Upload disabled for later enablement. |
-| `-o, --bundle-output-path <path>` | Directory where bundle archives are generated. |
-| `-m, --message <message>` | Custom deployment message. |
-| `-i, --interactive` | Guided deployment flow. |
-
-### Patch Artifacts
-
-```sh
-npx hot-updater patch -b <bundle-id> --base-bundle-id <base-bundle-id> -p ios
-npx hot-updater patch -b <bundle-id> --base-bundle-id <base-bundle-id> -p android -c production
-npx hot-updater patch -i
-```
-
-Important options:
-
-| Option | Meaning |
-| --- | --- |
-| `-b, --bundle-id <bundleId>` | Target bundle id that should receive the patch artifact. |
-| `--base-bundle-id <baseBundleId>` | Older bundle id to use as the patch base. |
-| `-p, --platform <platform>` | Target `ios` or `android`. |
-| `-c, --channel <channel>` | Channel used to load config, default `production`. |
-| `-i, --interactive` | Guided patch flow. |
-
-### Bundle Inventory and State
-
-```sh
-npx hot-updater bundle list
-npx hot-updater bundle list -c production -p ios --limit 10
-npx hot-updater bundle list -c production -p ios --target-app-version 1.0.0 --json
-npx hot-updater bundle list -c production -p ios --limit 10 --json
-npx hot-updater bundle list --json
-npx hot-updater bundle show <bundle-id>
-npx hot-updater bundle show <bundle-id> --json
-npx hot-updater bundle disable <bundle-id>
-npx hot-updater bundle enable <bundle-id>
-npx hot-updater bundle update <bundle-id> --rollout-cohort-count 500
-npx hot-updater bundle update <bundle-id> --force-update true --json
-npx hot-updater bundle update <bundle-id> --target-cohorts 1,2,3
-npx hot-updater bundle update <bundle-id> --clear-target-cohorts
-npx hot-updater bundle delete <bundle-id>
-npx hot-updater bundle delete <bundle-id> <another-bundle-id> -y
-npx hot-updater bundle promote <bundle-id> -t staging
-npx hot-updater bundle promote <bundle-id> -t staging -a move
-```
-
-- `bundle list` shows the most recent bundles first.
-- `bundle list --limit <n>` defaults to `20`.
-- `bundle list --target-app-version <version>` filters by an exact target app
-  version.
-- `--json` is available for `bundle list`, `bundle show`, and `bundle update`
-  on CLIs that support it.
-- `bundle disable` and `bundle enable` read the bundle, mutate enabled state,
-  commit the change, then re-read to verify.
-- `bundle update` can set rollout cohort count from `0` to `1000`, force update
-  metadata, and target cohorts.
-- `bundle delete` removes one or more bundle records by id. It does not delete
-  shared assets or bundle objects from storage.
-- `bundle promote` copies to a target channel by default. Use `-a move` only
-  when the user explicitly wants to keep the same bundle id and move channels.
-- In CI or other non-interactive shells, pass `-y` to `enable` or `disable`.
-  Also pass `-y` to `update`, `delete`, or `promote` only when the requested
-  mutation target is unambiguous.
-
-### Storage Maintenance
-
-```sh
-npx hot-updater storage prune --dry-run
-npx hot-updater storage prune --dry-run --protect-newer-than 7d
-npx hot-updater storage prune --protect-newer-than 24h --yes
-```
-
-- `storage prune` is reference-aware garbage collection, not a retention
-  policy. Delete explicitly selected bundle records first when the user wants
-  to reclaim their files.
-- Always run the explicit `--dry-run` form and review the eligible object list
-  before deletion. Without `--yes`, the command does not delete objects.
-- `--protect-newer-than` defaults to `24h` and accepts `m`, `h`, `d`, or `w`.
-  It compares object modification time, not time since a bundle record was
-  deleted. Objects without a modification timestamp remain protected.
-- `--yes` can remove orphaned legacy or `bundles/<bundle-id>` bundle objects and
-  unreferenced `assets/sha256` assets. It preserves live references and unknown
-  files, and reloads references before deletion.
-- Before `--yes`, stop deploy and promote operations using the same prefix. If
-  databases or environments share a bucket, require a distinct storage
-  `basePath` for each one.
-- Storage pruning currently requires `s3Storage` management capabilities for
-  AWS S3 or an S3-compatible service.
-
-### Rollback
-
-```sh
-npx hot-updater rollback <channel>
-npx hot-updater rollback production -p ios
-npx hot-updater rollback production -p ios --target <bundle-id> -y
-```
-
-- Rollback disables the latest enabled bundle on the channel.
-- Without `-p`, rollback applies to both iOS and Android.
-- The next most recent enabled bundle on the same channel and platform becomes
-  the fallback.
-- If no previous enabled bundle exists, the app falls back to the JavaScript
-  bundle shipped in the native binary.
-- Use `--target <bundle-id>` to retry a partial rollback for exactly one bundle.
-
-### Channels
-
-```sh
-npx hot-updater channel set <channel>
-```
-
-This writes the default channel into native iOS and Android project files.
-Changing this embedded channel requires a native rebuild.
-
-### Code Signing Keys
-
-```sh
-npx hot-updater keys generate
-npx hot-updater keys generate -o ./keys -k 4096
-npx hot-updater keys export-public
-npx hot-updater keys export-public -i ./keys/private.pem --print-only
-npx hot-updater keys remove
-```
-
-- `keys generate` writes an RSA key pair. The default output directory is
-  `./keys`, and supported key sizes are `2048` and `4096` with default `4096`.
-- `keys export-public` reads the private key from `-i` or from
-  `signing.privateKeyPath` in `hot-updater.config.ts`, then writes native public
-  key configuration unless `--print-only` is used.
-- `keys remove` removes public keys from native configuration files.
-- Use `-y` for native file writes only when the user explicitly requested the
-  exact operation.
-
-### Database
-
-```sh
-npx hot-updater db generate [configPath] [outputDir]
-npx hot-updater db generate --sql
-npx hot-updater db generate --sql postgresql
-npx hot-updater db migrate [configPath]
-```
-
-- `db generate` creates migration output without applying it. The default
-  output directory is `hot-updater_migrations`.
-- `db generate --sql [provider]` creates a standalone SQL file without reading
-  config. Supported providers are `postgresql`, `mysql`, and `sqlite`; omitting
-  the provider starts interactive selection.
-- `db migrate` applies the latest migration through the configured database
-  plugin.
-- Pass `-y` only when the user explicitly requested the write or migration.
+- Do not run interactive initialization on the user's behalf. Guide the user
+  through the choices shown by its current help.
+- Before a server-aware doctor run, obtain the server base URL from the user or
+  local configuration. Prefer JSON only when the current doctor help offers it.
+- In a doctor repair loop, change only local auto-fixable issues or explicitly
+  listed commands. Treat credential, infrastructure, and redeployment needs as
+  blockers unless separately authorized.
+- For current-app-version deployment, first discover and run the available app
+  version command, then read deploy help and use its current platform and target
+  options. Deploy one platform at a time and stop after a failure.
+- Do not automatically repair a failed deploy, edit setup, change credentials,
+  install dependencies, or run migrations. Report the failure and relevant next
+  checks unless the user requests remediation.
+- Patch artifacts remain Bundle-to-Bundle data. Resolve exact Bundle identities
+  and read patch help regardless of the selected policy model.
+- Treat an unqualified cleanup request as preview-only. Before destructive
+  pruning, confirm exclusive ownership of the storage prefix and stop every
+  operation that can write to it.
+- Do not edit provider credentials unless explicitly requested. Projects often
+  use `.env.hotupdater`, but local configuration may load another environment.
