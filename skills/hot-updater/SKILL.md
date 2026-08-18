@@ -1,6 +1,6 @@
 ---
 name: hot-updater
-description: Operate and diagnose Hot Updater CLI projects across legacy Bundle-policy and Release Catalog versions. Use for setup, deployment, rollout, rollback, promotion, Bundle and Release inspection, patch artifacts, storage cleanup, channels, signing keys, database migration, fingerprints, doctor repair, or other React Native OTA tasks. Discover the locally installed CLI command surface from just-in-time `--help` output instead of assuming a Hot Updater version or memorizing commands and options.
+description: Operate and diagnose Hot Updater CLI projects across changing Bundle-owned and Release-owned policy command surfaces. Use for setup, deployment, rollout, rollback, promotion, Bundle and Release inspection, patch artifacts, storage cleanup, channels, signing keys, database migration, fingerprints, doctor repair, or other React Native OTA tasks. Discover the locally installed CLI command surface from just-in-time `--help` output instead of memorizing commands and options.
 ---
 
 # Hot Updater CLI
@@ -21,8 +21,6 @@ the CLI reference.
    download a missing or newer CLI implicitly.
 5. If no local CLI can be resolved, stop and report that discovery is blocked.
    Do not install or upgrade Hot Updater without explicit authorization.
-6. Run `<cli> --version` for reporting only. Never select a workflow from the
-   version string.
 
 ## Discover commands just in time
 
@@ -45,9 +43,9 @@ Use the generated help as the syntax contract:
 - Use `--json`, `-y`/`--yes`, `--dry-run`, `preflight`, filters, or limits only
   when the exact command help exposes them.
 - Treat JSON output dynamically. Do not assume a field exists merely because a
-  different Hot Updater version returned it.
+  different command surface returned it.
 - If a command or option is absent, adapt to an available safe workflow or
-  report the missing capability. Never silently install a different version.
+  report the missing capability. Never silently install a different CLI.
 - Repeat exact-command help discovery after the dependency or lockfile changes.
 
 Help probes are read-only. Run them freely before asking the user for mutation
@@ -55,9 +53,9 @@ approval.
 
 ## Select the ownership model by capability
 
-Probe capabilities rather than comparing semantic versions.
+Probe capabilities directly.
 
-### Release Catalog model
+### Release-owned policy
 
 Select this model when the top-level help exposes `release` and
 `<cli> release --help` succeeds.
@@ -74,7 +72,7 @@ Select this model when the top-level help exposes `release` and
 - For cleanup, remove Release references before deleting an unreferenced Bundle,
   then preview Storage pruning when that capability exists.
 
-### Legacy Bundle-policy model
+### Bundle-owned policy
 
 Select this model when Release commands are absent and Bundle help exposes
 policy mutations or the top-level help exposes rollback.
