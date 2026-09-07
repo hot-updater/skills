@@ -11,13 +11,15 @@ The skill source lives at [`skills/hot-updater/SKILL.md`](skills/hot-updater/SKI
 Then ask your agent:
 
 ```text
-$hot-updater Set up infrastructure on Cloudflare for this project.
+$hot-updater Set up infrastructure for this project.
 ```
 
 The agent discovers your app and existing configuration, creates missing projects
 and resources, and applies the generated deployment templates through available
-MCP, CLI, API, or browser tools. It asks only for unresolved choices or access.
-It verifies remote state and resumes unfinished steps after a failure.
+MCP, CLI, API, or browser tools. You can leave the provider unspecified: the
+agent checks existing configuration and asks you to choose if it cannot determine
+one. It asks only for other unresolved choices or access, verifies remote state,
+and resumes unfinished steps after a failure.
 Cloudflare, Supabase, AWS, and Firebase are supported by the infrastructure workflow.
 
 Authenticate through the provider or save credentials directly in a local ignored
@@ -28,7 +30,7 @@ source so optional fields do not become unnecessary onboarding questions.
 To upgrade an existing server:
 
 ```text
-$hot-updater Upgrade this project's existing Cloudflare server infrastructure.
+$hot-updater Upgrade this project's existing server infrastructure.
 ```
 
 The agent reads the CLI's versioned release files in order, including intermediate

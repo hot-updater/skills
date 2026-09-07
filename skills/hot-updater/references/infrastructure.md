@@ -3,8 +3,8 @@
 Use this workflow for requests such as:
 
 ```text
-$hot-updater Set up infrastructure on Cloudflare for this project.
-$hot-updater Upgrade this project's existing Supabase infrastructure.
+$hot-updater Set up infrastructure for this project.
+$hot-updater Upgrade this project's existing server infrastructure.
 $hot-updater Extract the AWS server templates without deploying them.
 ```
 
@@ -18,7 +18,8 @@ with its available tools. A scaffold is not a deployment.
    resources through available access. Infer choices from that evidence; ask
    only when multiple targets remain plausible or required access is unavailable.
    Do not require an existing config for setup or ask the user to find values
-   that the agent can discover.
+   that the agent can discover. If no provider is specified or established by
+   project context, ask the user to choose one.
 2. Resolve the local CLI using SKILL.md's Local CLI Contract. For a requested setup
    or upgrade with no installed CLI, install a suitable local development
    dependency through the project's package manager as part of the requested
