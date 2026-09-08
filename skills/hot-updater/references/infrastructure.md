@@ -81,8 +81,17 @@ app integration packages, or deploying is outside an extraction-only request.
   file or provider secret store, then report only completion. Verify presence and
   access with redacted checks; do not read entire credential files into tool output.
   Generate and persist new secrets privately when the setup requires them.
-- Inspect prerequisites, apply the missing step, verify remote state, then record
-  exact resource IDs and evidence in the deployment record. A target version in
+- For setup, follow the scaffold's ordered provider checklist: inputs/prerequisites,
+  action, verification and retry. For upgrades, use the version files as the action
+  list and the setup guide only for required prerequisites. Do not skip a dependency
+  because its command returned successfully; observe the stated completion condition.
+- Before each remote mutation, record a stable target (account/project, region,
+  name or ID) and the intended action in the deployment record's pendingStep when
+  supported. Save the request/operation ID when returned. After observing the
+  outcome, record exact IDs, target, evidence and time in verifiedSteps, then clear
+  the pending action. Keep only one unresolved mutation at a time; independent
+  reads/local preparation can continue. Follow the installed scaffold's record
+  format and never store raw responses, secrets or signed URLs. A target version in
   the manifest is not proof that version is deployed. Provider-specific resource,
   schema, secret, and runtime requirements come from the scaffold, not this skill.
 - After a failed or timed-out operation, query actual state before retrying.
@@ -117,22 +126,32 @@ section. Do not read only the newest release or blindly replay already applied
 steps. Resolve conflicting prerequisites before applying pending changes in order.
 
 Preserve customized files, resource identities, endpoints, data, migration history,
-client API keys, and signing keys as the release instructions require. Record the
-version filenames and the changes actually applied and verified. Keep migration
-details in the CLI's release files; do not substitute a generic redeploy or a
+client API keys, and signing keys as the release instructions require. Do not
+copy old verifiedSteps as completion of a new upgrade; re-verify against the new
+manifest/target and identify steps by the relevant version filename. Record the
+changes actually applied and verified. Keep migration details in the CLI's release
+files; do not substitute a generic redeploy or a
 remembered migration recipe from this skill.
 
 ## Verify and report
 
-Follow the provider verification instructions: check the public server's actual
-version/generation against the target, verify an authenticated client request and
+Follow all common/provider completion steps, including local configuration and
+the final report. When the scaffold supplies app/verify-server.mjs, run it with
+its documented arguments and actual app target instead of recreating the probe.
+It is read-only, reads keys privately, and emits sanitized JSON with a nonzero
+exit code on failure. It does not test artifact signing or native integration.
+Older scaffolds may describe a manual probe; follow their versioned instructions.
+Check the public server's actual version/generation against the target, verify an authenticated client request and
 artifact access when available, and run the discovered doctor command against the
 actual server base URL. `/version` is public and does not test client authentication.
 Follow the scaffold's exact catalog route and expected responses: unauthenticated
 401, then authenticated 200 or its documented empty-catalog 404. Do not treat an
 arbitrary 404 as success. Load the saved client key privately inside the probe
 process without printing it or placing it in command arguments. Missing config
-or skipped checks do not count as success.
+or skipped checks do not count as success. Doctor does not verify local provider
+storage credentials: follow the scaffold's bounded read/list check using the same
+credential chain as the local storage plugin. Do not substitute an MCP session or
+server runtime credentials, or claim write/OTA verification from read access.
 
 A doctor `fixability: "blocked"` issue needs external context/access beyond local
 repairs. With an existing setup/upgrade request and the required provider access,
