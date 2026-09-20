@@ -167,6 +167,14 @@ When doctor recommends an infrastructure upgrade, route a requested upgrade to
 the Infrastructure reference. Generating local instructions does not establish
 provider access or prove the server was upgraded.
 
+For infrastructure setup or upgrade completion, use the reference's
+[doctor gates](references/infrastructure.md#verify-and-report). Discover scoped
+verification through `doctor --help`; require a passing result for the exact
+scaffold and deployed target. Ordinary doctor and agent-written checklists do
+not replace those gates. Report `notChecked` work separately, including native OTA.
+`fixability` describes repair prerequisites; continue already authorized repairs
+when the needed access and target are known.
+
 ### Database and Catalog
 
 Treat migration, schema application, record changes, and catalog rebuild as
@@ -186,7 +194,9 @@ path. Verify permissions and ignore rules without exposing secret material.
   catalog work, deletion, and pruning as mutations; generated files are writes.
 - Never request secrets in chat or arguments, print environments, dump sensitive
   files, or enable credential-leaking logs. Redact tokens, DSNs, passwords,
-  private keys, and provider output. If trust review would expose a secret, stop.
+  private keys, and provider output. The infrastructure reference's final setup
+  handoff permits only the registered client API key; provider/admin credentials
+  stay private. If trust review would expose a secret, stop.
 - Outside requested infrastructure work, do not automatically retry, repair,
   edit config, install dependencies, or clean partial state after failure.
 - On `unknown command` or `unknown option`, refresh top-level and exact-path help;

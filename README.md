@@ -34,10 +34,15 @@ $hot-updater Upgrade this project's existing server infrastructure.
 ```
 
 The agent reads the CLI's versioned release files in order, including intermediate
-releases, applies pending changes, and verifies the server with doctor. You can
-also request standalone server templates without deploying them.
+releases, applies pending changes, and uses doctor to verify the configured
+scaffold and deployed server. Both scoped checks must pass before it reports
+infrastructure verification complete; native OTA and checks outside doctor's
+scope are reported separately. You can also request standalone server templates
+without deploying them.
 
 The skill checks the installed CLI's help before using `agent infra setup`,
 `agent infra upgrade`, or `infra scaffold`. These require a CLI release that
-advertises those commands; installing the skill does not add them to an older CLI
-or grant cloud access.
+advertises those commands. Setup and upgrades also require doctor's `scaffold`
+and `infrastructure` scopes. If those are unavailable, the agent identifies the
+needed compatible CLI upgrade and leaves verification incomplete. Installing
+the skill does not add capabilities to an older CLI or grant cloud access.
