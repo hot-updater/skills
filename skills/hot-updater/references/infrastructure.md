@@ -32,8 +32,14 @@ with its available tools. A scaffold is not a deployment.
 3. Discover each parent and exact command's help. The intended routes are
    `<cli> agent infra setup`, `<cli> agent infra upgrade`, and
    `<cli> infra scaffold`; use them only when advertised. Follow the installed
-   CLI's actual options and output. Do not fall back to interactive `init` or
-   `init --from-env-file` to automate a missing capability.
+   CLI's actual options and output. For setup or upgrade, also discover
+   `<cli> doctor --help` and require `--scope scaffold|infrastructure`,
+   `--infra-dir`, JSON output and the live target options before provisioning.
+   If unavailable, use the compatible-package upgrade procedure above; if the
+   requested version/channel cannot provide them, report the missing gate and
+   leave verification incomplete. Do not substitute a helper or ordinary doctor
+   for a scoped pass, or fall back to interactive `init` to automate a missing
+   capability.
 4. For setup or upgrade, run the agent command's bootstrap when choices are
    incomplete. Use the discovered provider/build flags to generate the files;
    prefer structured output when available. Current templates cover Cloudflare,
@@ -54,6 +60,8 @@ For extraction-only requests, use `infra scaffold` with a provider and output
 directory. It needs no app build selection and produces the same server artifacts
 used by the agent commands. Return the actual paths; creating resources, installing
 app integration packages, or deploying is outside an extraction-only request.
+Unfilled templates are expected to fail the scaffold gate; extraction success
+does not mean the files are ready to deploy.
 
 ## Apply and resume
 
@@ -85,6 +93,10 @@ app integration packages, or deploying is outside an extraction-only request.
   action, verification and retry. For upgrades, use the version files as the action
   list and the setup guide only for required prerequisites. Do not skip a dependency
   because its command returned successfully; observe the stated completion condition.
+- After resource inputs and deployment files are configured, run the scaffold
+  doctor gate below. Repair failed checks and rerun before claiming the scaffold
+  is ready. Resource creation may be needed to fill placeholders first; a fresh
+  template's expected failures are not a reason to invent resource IDs.
 - Before each remote mutation, record a stable target (account/project, region,
   name or ID) and the intended action in the deployment record's pendingStep when
   supported. Save the request/operation ID when returned. After observing the
@@ -136,22 +148,51 @@ remembered migration recipe from this skill.
 ## Verify and report
 
 Follow all common/provider completion steps, including local configuration and
-the final report. When the scaffold supplies app/verify-server.mjs, run it with
-its documented arguments and actual app target instead of recreating the probe.
-It is read-only, reads keys privately, and emits sanitized JSON with a nonzero
-exit code on failure. It does not test artifact signing or native integration.
-Older scaffolds may describe a manual probe; follow their versioned instructions.
-Check the public server's actual version/generation against the target, verify an authenticated client request and
-artifact access when available, and run the discovered doctor command against the
-actual server base URL. `/version` is public and does not test client authentication.
-Follow the scaffold's exact catalog route and expected responses: unauthenticated
-401, then authenticated 200 or its documented empty-catalog 404. Do not treat an
-arbitrary 404 as success. Load the saved client key privately inside the probe
-process without printing it or placing it in command arguments. Missing config
-or skipped checks do not count as success. Doctor does not verify local provider
-storage credentials: follow the scaffold's bounded read/list check using the same
-credential chain as the local storage plugin. Do not substitute an MCP session or
-server runtime credentials, or claim write/OTA verification from read access.
+the final report. Use the CLI version that generated the selected scaffold.
+Resolve a version mismatch with the matching CLI or a fresh upgrade scaffold;
+never edit manifest versions or remove file entries to bypass validation.
+
+After exact help confirms support, run these gates from the selected app/config
+root using the actual absolute scaffold path returned by the command:
+
+```text
+<cli> doctor --scope scaffold --infra-dir <scaffold-path> --json
+<cli> doctor --scope infrastructure --infra-dir <scaffold-path> --json --server-base-url <base-url> --platform <ios|android> --channel <channel> --app-version <app-version>
+```
+
+Run the first after configuring deployment inputs, and the second after deploying
+and resolving any pendingStep from observed provider state. Use the real app
+platform/channel and exactly one compatibility target; replace `--app-version`
+with `--fingerprint <fingerprint>` for fingerprint updates. Preserve any Function
+path in the base URL. If output includes `doctor.command` and `doctor.args`,
+validate the arguments against discovered help and the selected directory, and
+invoke them through the resolved local `<cli>`.
+
+Each gate requires exit code 0, JSON `success: true`, and
+`details.verification` with `schemaVersion: 1`, the requested `scope`, and a
+nonempty `checks` array whose entries all have `status: "pass"`. Read stable
+check `code`, `paths`, `fixability`, and `resolution` to repair failures, then
+rerun the same gate. A `fail`, `blocked`, missing/unknown result or skipped check
+is incomplete. Recorded `verifiedSteps` and agent reasoning cannot supply a pass.
+
+The infrastructure gate rechecks the scaffold and live version/generation, then
+the same catalog URL without a key (401) and with the saved key (valid catalog
+200 or the exact private, no-store empty-catalog 404). Public `/version` alone
+and arbitrary 404s are insufficient. Doctor reads the client key privately from
+HOT_UPDATER_API_KEY, the app's .env.hotupdater or scaffold app/api-key.local and
+blocks conflicting keys. Never put the key in arguments or diagnostic output.
+The generated app/verify-server.mjs remains a diagnostic helper sharing the live
+probe; its result does not replace the full doctor gate.
+
+Read and report `details.verification.notChecked`. Scoped checks do not verify
+remote bindings/migrations, local storage access, artifact downloads, app
+integration or native OTA. Follow the provider checklist for those checks and
+run ordinary `<cli> doctor --json --server-base-url <base-url>` for app package,
+config and native checks. Missing config or skipped checks remain incomplete.
+For local storage credentials, use the scaffold's bounded read/list check with
+the same credential chain as the local storage plugin. Do not substitute an MCP
+session or server runtime credentials, or claim write/OTA verification from read
+access. Verify existing artifact access when available.
 
 A doctor `fixability: "blocked"` issue needs external context/access beyond local
 repairs. With an existing setup/upgrade request and the required provider access,
@@ -159,6 +200,17 @@ continue through the generated instructions; pause only the step with an actual
 unresolved prerequisite, unknown remote state, or unapproved consequential change.
 
 Report the scaffold location, created/reused resources, verified server endpoint,
-applied release files, and remaining blockers. Report server deployment, local
-app/native integration, and release-build OTA validation separately. Do not publish
-an OTA update merely to prove that infrastructure setup succeeded.
+applied release files, both doctor scopes and remaining blockers. Report server
+deployment, local app/native integration, and release-build OTA validation
+separately. Do not publish an OTA update merely to prove that infrastructure
+setup succeeded.
+
+For setup, follow the generated common.report and the documentation's
+[completion handoff](https://hot-updater.dev/docs/guides/agent-infrastructure#verify-completion):
+provide a ready-to-copy HotUpdater.init configuration with the verified base URL
+and registered client x-api-key, plus the checkForUpdate call for the app's
+strategy. Read only the saved client key for this handoff; never show provider,
+service-role, admin or signing credentials. Preserve existing initialization
+options and use one initialization API. Infrastructure-only setup still includes
+this handoff and identifies app integration/native OTA as remaining work. If a
+required gate is blocked, report it instead of declaring setup complete.
