@@ -3,7 +3,7 @@
 Install the Hot Updater agent skill with `npx skills`:
 
 ```sh
-npx skills add hot-updater/skills
+npx skills@latest add hot-updater/skills
 ```
 
 The skill source lives at [`skills/hot-updater/SKILL.md`](skills/hot-updater/SKILL.md).
@@ -46,3 +46,15 @@ advertises those commands. Setup and upgrades also require doctor's `scaffold`
 and `infrastructure` scopes. If those are unavailable, the agent identifies the
 needed compatible CLI upgrade and leaves verification incomplete. Installing
 the skill does not add capabilities to an older CLI or grant cloud access.
+
+The same skill operates a running project through the installed CLI: deploys,
+Bundle rollout and rollback, client API keys, Remote Config, and Insights reads.
+
+```text
+$hot-updater Turn off new_checkout for the Android beta channel with Remote Config.
+$hot-updater Check the update failures of the latest iOS production Bundle.
+```
+
+It reads each command's help first, previews a change when the CLI can, and
+asks before anything that reaches devices, such as publishing Remote Config or
+disabling a Bundle.
