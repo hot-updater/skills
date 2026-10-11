@@ -144,10 +144,9 @@ target for an older scaffold.
 Read the returned `upgradeGuide` (`upgrades/README.md`) and ordered `upgradeFiles`
 entries (`upgrades/<version>.md`). Read the installed generation's baseline as
 context, then every subsequent requirement through the target in ascending order,
-including skipped releases. Prerelease installations also need baseline context;
-if the deployment predates the first file, start there. Read all relevant files
-before making changes, using each file's common sections and selected provider
-section. Do not read only the newest release or blindly replay already applied
+including skipped releases. If the deployment predates the first file, start
+there. Read all relevant files before making changes, using each file's common
+sections and selected provider section. Do not read only the newest release or blindly replay already applied
 steps. Resolve conflicting prerequisites before applying pending changes in order.
 
 Preserve customized files, resource identities, endpoints, data, migration history,
