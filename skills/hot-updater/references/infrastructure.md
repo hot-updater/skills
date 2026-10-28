@@ -29,7 +29,10 @@ with its available tools. A scaffold is not a deployment.
    a compatible CLI/package upgrade before continuing. Do not silently switch
    release channels, use a global/download-on-execution CLI, or treat a help
    runtime failure as a missing command.
-3. Discover each parent and exact command's help. The intended routes are
+3. For an upgrade, first run doctor and follow the upgrade it names, as
+   [Read the full upgrade path](#read-the-full-upgrade-path) describes; only a
+   scaffold-kept deployment continues with these steps.
+   Discover each parent and exact command's help. The intended routes are
    `<cli> agent infra setup`, `<cli> agent infra upgrade`, and
    `<cli> infra scaffold`; use them only when advertised. Follow the installed
    CLI's actual options and output. For setup or upgrade, also discover

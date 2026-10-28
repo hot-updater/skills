@@ -47,7 +47,7 @@ CLI help is the syntax source of truth.
 - Patch creation: use Delivery Policy's source, destination, base, and target rules.
 - Channels, pull request previews, app versions, fingerprints, or another
   supported task: discover the exact group and apply the safe loop. Pull
-  request previews run the repository's `actions/preview` GitHub Action; follow
+  request previews run Hot Updater's `actions/preview` GitHub Action; follow
   [its guide](https://hot-updater.dev/docs/guides/pull-request-previews).
 
 ## Local CLI Contract
@@ -182,7 +182,8 @@ schemes, signing, and tracking.
   skipped, not uploaded.
 - Read the JSON result from the last output line. A failed build prints its
   reason and the path of its full log.
-- `native-build find` only reads. `native-build import` tracks a release build
+- `native-build find` reads, and runs a prebuild only when it says so.
+  `native-build import` tracks a release build
   made elsewhere as a patch base; preview it with its dry-run option first.
 - `native-build delete` removes a build and its artifact; bundles lose their
   patches from it and devices with that build download complete bundles.
