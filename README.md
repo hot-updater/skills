@@ -20,8 +20,7 @@ MCP, CLI, API, or browser tools. You can leave the provider unspecified: the
 agent checks existing configuration and asks you to choose if it cannot determine
 one. It asks only for other unresolved choices or access, verifies remote state,
 and resumes unfinished steps after a failure.
-Cloudflare, Supabase, AWS, Firebase, Vercel, and Azure are supported by the
-infrastructure workflow.
+Cloudflare, Supabase, AWS, and Firebase are supported by the infrastructure workflow.
 
 Authenticate through the provider or save credentials directly in a local ignored
 file; do not paste tokens, passwords or private keys into the conversation.
@@ -34,15 +33,12 @@ To upgrade an existing server:
 $hot-updater Upgrade this project's existing server infrastructure.
 ```
 
-The agent runs doctor, which only reports, and follows the upgrade it names. A
-server `hot-updater init` deployed upgrades by replaying init with its saved
-inputs. For a server an agent scaffold keeps, the agent reads the CLI's
-versioned release files in order, including intermediate releases, applies
-pending changes, and uses doctor to verify the configured scaffold and deployed
-server. Both scoped checks must pass before it reports infrastructure
-verification complete; native OTA and checks outside doctor's scope are
-reported separately. You can also request standalone server templates without
-deploying them.
+The agent reads the CLI's versioned release files in order, including intermediate
+releases, applies pending changes, and uses doctor to verify the configured
+scaffold and deployed server. Both scoped checks must pass before it reports
+infrastructure verification complete; native OTA and checks outside doctor's
+scope are reported separately. You can also request standalone server templates
+without deploying them.
 
 The skill checks the installed CLI's help before using `agent infra setup`,
 `agent infra upgrade`, or `infra scaffold`. These require a CLI release that
@@ -52,18 +48,13 @@ needed compatible CLI upgrade and leaves verification incomplete. Installing
 the skill does not add capabilities to an older CLI or grant cloud access.
 
 The same skill operates a running project through the installed CLI: deploys,
-Bundle rollout and rollback, native builds and their TestFlight and Google Play
-uploads, build credentials in the config's `secrets` adapter, client API keys,
-Remote Config, and Insights reads.
+Bundle rollout and rollback, client API keys, Remote Config, and Insights reads.
 
 ```text
 $hot-updater Turn off new_checkout for the Android beta channel with Remote Config.
 $hot-updater Check the update failures of the latest iOS production Bundle.
-$hot-updater Rehearse the iOS release build for TestFlight without uploading it.
 ```
 
 It reads each command's help first, previews a change when the CLI can, and
-asks before anything that reaches devices or testers, such as publishing Remote
-Config, disabling a Bundle, or submitting a build. The Apple sign-in is yours
-to run in your own terminal; with a team secrets store, a teammate finds the
-keys already stored and needs none.
+asks before anything that reaches devices, such as publishing Remote Config or
+disabling a Bundle.
