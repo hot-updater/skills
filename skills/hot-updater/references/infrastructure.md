@@ -29,7 +29,10 @@ with its available tools. A scaffold is not a deployment.
    a compatible CLI/package upgrade before continuing. Do not silently switch
    release channels, use a global/download-on-execution CLI, or treat a help
    runtime failure as a missing command.
-3. Discover each parent and exact command's help. The intended routes are
+3. For an upgrade, first run doctor and follow the upgrade it names, as
+   [Read the full upgrade path](#read-the-full-upgrade-path) describes; only a
+   scaffold-kept deployment continues with these steps.
+   Discover each parent and exact command's help. The intended routes are
    `<cli> agent infra setup`, `<cli> agent infra upgrade`, and
    `<cli> infra scaffold`; use them only when advertised. Follow the installed
    CLI's actual options and output. For setup or upgrade, also discover
@@ -38,12 +41,13 @@ with its available tools. A scaffold is not a deployment.
    If unavailable, use the compatible-package upgrade procedure above; if the
    requested version/channel cannot provide them, report the missing gate and
    leave verification incomplete. Do not substitute a helper or ordinary doctor
-   for a scoped pass, or fall back to interactive `init` to automate a missing
-   capability.
+   for a scoped pass, or fall back to interactive `init` or
+   `init --from-env-file` to automate a missing capability.
 4. For setup or upgrade, run the agent command's bootstrap when choices are
    incomplete. Use the discovered provider/build flags to generate the files;
    prefer structured output when available. Current templates cover Cloudflare,
-   Supabase, AWS, and Firebase with Bare, Rock, or Expo app configuration.
+   Supabase, AWS, Firebase, Vercel, and Azure with Bare, Rock, or Expo app
+   configuration.
 5. Read the returned `instructions` (SETUP.md for setup, `upgrades/README.md`
    for an upgrade), `commonInstructions` (COMMON.md), `environment`
    (ENVIRONMENT.md), `manifest` and `deployment` record before applying
@@ -58,9 +62,9 @@ with its available tools. A scaffold is not a deployment.
 
 Before creating remote resources, read the generated runtime prerequisites and
 check the local tooling. The client credential helper,
-`app/provision-client-credential.mjs`, needs Node 22.18+ or Node 24+ because it
-imports TypeScript; the CLI itself supports Node 20.19+. Arrange a separate
-helper runtime if the app uses an older supported Node version.
+`app/provision-client-credential.mjs`, imports TypeScript. The CLI and the
+helper need Node 22.23.4+, 24.22.1+, or 26.12.1+; arrange a separate helper
+runtime if the app uses an older Node version.
 
 For extraction-only requests, use `infra scaffold` with a provider and output
 directory. It needs no app build selection and produces the same server artifacts
@@ -93,6 +97,9 @@ does not mean the files are ready to deploy.
   `app/hot-updater.config.ts` into the app's existing config, as the common
   instructions describe, keeping its custom settings and update strategy. Never
   copy `app/hotUpdater.ts` into the app or add a `server` key to its config.
+  Configs import the provider's storage adapter, such as `s3Storage`,
+  `r2Storage`, or `neonStorage`, never `@hot-updater/storage-s3`, which they
+  share internally. Name credentials with `secret("<name>")`.
 - Never ask for token/password/key values or credential JSON in the conversation.
   Prefer provider login and existing role/session access. When user input is
   necessary, ask them to authenticate or save secrets directly in a local ignored
@@ -135,9 +142,26 @@ does not mean the files are ready to deploy.
 
 ## Read the full upgrade path
 
-Use `agent infra upgrade` when an infrastructure upgrade is requested, including
-after doctor recommends it. Compare the live server version/generation and
-migration history with the previous deployment and the new target manifest.
+First run `<cli> doctor --json --server-base-url <base-url>` and follow the
+upgrade it names for this deployment:
+
+- A deployment `hot-updater init` created upgrades by replaying init with its
+  saved inputs, such as
+  `<cli> init --provider <provider> --from-env-file .env.hotupdater`. The
+  replay migrates the database and redeploys the server back to back. It
+  reports missing inputs before changing any resource; ask the user to set them
+  in the environment, never in chat. Its gate is that doctor command
+  afterwards: exit code 0, `success: true`, and a `details.infrastructure`
+  result, which shows the server was checked. Report unchecked warnings, such
+  as `RELEASE_CATALOGS_UNCHECKED`, as unverified.
+- A deployment an agent infrastructure scaffold keeps upgrades with
+  `agent infra upgrade`, as below, and passes both doctor gates.
+- When doctor names no command, as when the config lists a plugin of the
+  user's own, report its resolution instead of choosing an upgrade.
+
+Use `agent infra upgrade` for a scaffold-kept deployment. Compare the live
+server version/generation and migration history with the previous deployment
+and the new target manifest.
 An unknown state needs investigation; a newer deployed server is not a downgrade
 target for an older scaffold.
 
@@ -183,8 +207,8 @@ invoke them through the resolved local `<cli>`.
 Each gate requires exit code 0, JSON `success: true`, and
 `details.verification` with `schemaVersion: 1`, the requested `scope`, and a
 nonempty `checks` array whose entries all have `status: "pass"`. Read stable
-check `code`, `paths`, `fixability`, and `resolution` to repair failures, then
-rerun the same gate. A `fail`, `blocked`, missing/unknown result or skipped check
+check `code`, `paths`, and `resolution` to resolve failures, then rerun the
+same gate. A `fail`, `blocked`, missing/unknown result or skipped check
 is incomplete. Recorded `verifiedSteps` and agent reasoning cannot supply a pass.
 
 The infrastructure gate rechecks the scaffold and live version/generation, then
@@ -208,13 +232,15 @@ the same credential chain as the local storage plugin. Do not substitute an MCP
 session or server runtime credentials, or claim write/OTA verification from read
 access. Verify existing artifact access when available.
 
-A doctor `fixability: "blocked"` issue needs external context/access beyond local
-repairs. With an existing setup/upgrade request and the required provider access,
-continue through the generated instructions; pause only the step with an actual
-unresolved prerequisite, unknown remote state, or unapproved consequential change.
+A `blocked` check, or an issue whose resolution needs provider work, needs
+external context and access. With an existing setup/upgrade request and the
+required provider access, continue through the generated instructions; pause
+only the step with an actual unresolved prerequisite, unknown remote state, or
+unapproved consequential change.
 
 Report the scaffold location, created/reused resources, verified server endpoint,
-applied release files, both doctor scopes and remaining blockers. Report server
+applied release files, both doctor scopes (or, after an init replay, the
+doctor result) and remaining blockers. Report server
 deployment, local app/native integration, and release-build OTA validation
 separately. Do not publish an OTA update merely to prove that infrastructure
 setup succeeded.
