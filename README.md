@@ -64,6 +64,6 @@ $hot-updater Rehearse the iOS release build for TestFlight without uploading it.
 
 It reads each command's help first, previews a change when the CLI can, and
 asks before anything that reaches devices or testers, such as publishing Remote
-Config, disabling a Bundle, or submitting a build. Apple and Google sign-ins
-are yours to run in your own terminal; with a team secrets store, a teammate
-finds the keys already stored and needs none.
+Config, disabling a Bundle, or submitting a build. The Apple sign-in is yours
+to run in your own terminal; with a team secrets store, a teammate finds the
+keys already stored and needs none.

@@ -97,6 +97,9 @@ does not mean the files are ready to deploy.
   `app/hot-updater.config.ts` into the app's existing config, as the common
   instructions describe, keeping its custom settings and update strategy. Never
   copy `app/hotUpdater.ts` into the app or add a `server` key to its config.
+  Configs import the provider's storage adapter, such as `s3Storage`,
+  `r2Storage`, or `neonStorage`, never `@hot-updater/storage-s3`, which they
+  share internally. Name credentials with `secret("<name>")`.
 - Never ask for token/password/key values or credential JSON in the conversation.
   Prefer provider login and existing role/session access. When user input is
   necessary, ask them to authenticate or save secrets directly in a local ignored

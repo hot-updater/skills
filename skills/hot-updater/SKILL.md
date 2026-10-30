@@ -1,6 +1,6 @@
 ---
 name: hot-updater
-description: Set up, upgrade, operate, and diagnose Hot Updater projects. Use for provider infrastructure setup or upgrades, server template extraction, deployment, delivery policy, rollback, promotion, Bundle inspection, patching, Storage cleanup, channels, native builds and their tracking, TestFlight and Google Play uploads, store sign-in, build and deploy credentials in the secrets adapter, signing keys, API keys, Remote Config templates, Insights reads such as update failures and installations, database migrations, app versions, fingerprints, and doctor diagnosis. Discover commands and options from the selected project's live CLI help; do not use this skill to develop Hot Updater itself.
+description: Set up, upgrade, operate, and diagnose Hot Updater projects. Use for provider infrastructure setup or upgrades, server template extraction, deployment, delivery policy, rollback, promotion, Bundle inspection, patching, Storage cleanup, channels, native builds and their tracking, TestFlight and Google Play uploads, Apple sign-in, build and deploy credentials in the secrets adapter, bundle signing keys, API keys, Remote Config templates, Insights reads such as update failures and installations, database migrations, app versions, fingerprints, and doctor diagnosis. Discover commands and options from the selected project's live CLI help; do not use this skill to develop Hot Updater itself.
 ---
 
 # Hot Updater CLI
@@ -35,7 +35,7 @@ CLI help is the syntax source of truth.
 - Record deletion or Storage cleanup: [Deletion and Storage Cleanup](#deletion-and-storage-cleanup).
 - Native builds, imported builds, TestFlight or Google Play uploads:
   [Native Builds](#native-builds).
-- Store sign-in, credentials, or the `secrets` adapter:
+- Apple sign-in, credentials, bundle signing keys, or the `secrets` adapter:
   [Secrets and Store Credentials](#secrets-and-store-credentials).
 - Diagnose: [Doctor](#doctor).
 - Database migrations or catalogs: [Database and Catalog](#database-and-catalog).
@@ -43,7 +43,7 @@ CLI help is the syntax source of truth.
 - Remote Config values, versions, or a device's values: [Remote Config](#remote-config).
 - Reporting devices, update failures, or an installation's reports:
   [Insights](#insights).
-- Key or schema generation: [Generated Files](#generated-files).
+- Schema generation or public key export: [Generated Files](#generated-files).
 - Patch creation: use Delivery Policy's source, destination, base, and target rules.
 - Channels, pull request previews, app versions, fingerprints, or another
   supported task: discover the exact group and apply the safe loop. Pull
@@ -190,8 +190,9 @@ schemes, signing, and tracking.
   `channel delete` can also delete the native builds that embed the channel.
 - The Console's Native builds page installs and inspects tracked builds.
 
-A build or submission that needs a store key nothing holds starts an Apple or
-Google sign-in at a terminal. Check credentials first, as the next section
+A build or submission that needs a credential nothing holds fails before it
+builds, except an iOS build missing its App Store Connect key, which starts an
+Apple sign-in at a terminal. Check credentials first, as the next section
 describes, and stop instead of starting a sign-in.
 
 ### Secrets and Store Credentials
@@ -199,28 +200,48 @@ describes, and stop instead of starting a sign-in.
 The config's `secrets` adapter decides who shares build and deploy credentials;
 read [Secrets](https://hot-updater.dev/docs/concepts/secrets).
 
-- `localSecrets()`, the default, reads the environment, then keeps credentials
-  on this machine only. A team store, such as 1Password, Infisical, AWS
-  `secretsManager()`, Google Cloud `secretManager()`, or any adapter with
-  `set`, shares every credential the CLI reads by name with the team and CI:
-  the App Store Connect API key, the Play service account, the Android upload
-  keystore, and a local bundle signing key.
-- Config names a credential as `secret:<name>`, such as a `nativeBuild` scheme's
-  signing or the local signing key; `secretEnv` gives an adapter its deploy
-  credentials when it calls. In CI, `localSecrets()` reads each secret from its
-  environment variable, and a team store from the store the job signs in to.
-- `apple login` and `google-play login` sign in and store the keys builds and
-  uploads need. Only the user runs them, in their own terminal. A key the
-  environment or the adapter already holds is kept, so a teammate on a team
-  store finds it and builds, uploads, and deploys with it. Without a terminal
-  they only report a held key or fail.
+- `localSecrets()`, init's default, reads the environment, then keeps
+  credentials on this machine only. A team store, such as
+  `infisical({ projectId })` built into `hot-updater`, AWS `secretsManager()`,
+  Google Cloud `secretManager()`, Azure `keyVault()`, or any adapter with
+  `set`, shares every credential the config names with the team and CI: the
+  App Store Connect API key, the Play service account, the Android upload
+  keystore, the bundle signing key, and the storage and database adapters'
+  credentials.
+- Config names every credential with `secret("<name>")` from `hot-updater`,
+  such as a `nativeBuild` scheme's signing or an adapter's API token; an
+  adapter reads its names when it first needs them. The environment wins over
+  the adapter. In CI, `localSecrets()` reads each secret from its environment
+  variable, and a team store from the store the job signs in to.
+  `secrets import` stores a managed project's `.env.hotupdater` credentials in
+  a team store and deletes nothing.
+- `apple login`, the alias of `secrets issue asc-api-key`, signs in and stores
+  the App Store Connect API key. Only the user runs it, in their own terminal.
+  A key the environment or the adapter already holds is kept, so a teammate on
+  a team store finds it and builds, uploads, and deploys with it. Without a
+  terminal it only reports a held key or fails.
+- Google Play has no sign-in: `secrets put play-service-account <json>`
+  stores the service account key, then `secrets put android-keystore <jks>`
+  imports the upload keystore, or `secrets issue android-keystore` creates one
+  for an app with no `.aab` on Google Play yet, since Play keeps the first key.
 - `secrets put` imports a credential from files the user has; passwords come
-  from the environment or a hidden prompt. `secrets issue` is the full form of
-  the sign-ins and can store under another name or replace a key; a replaced
-  key stays valid until the user revokes it. `keys generate` can store a new
-  signing key through the adapter.
-- Storing, issuing, and replacing are mutations. Report where a key is, never
-  its value.
+  from the environment or a hidden prompt. `secrets issue` can store under
+  another name, and its replace option issues a new key; a replaced App Store
+  Connect key stays valid until the user revokes it, and a replaced keystore
+  is overwritten.
+- Bundle signing reads its private key as a secret:
+  `signing: secret("bundle-signing-key")` is the shorthand of
+  `{ enabled: true, privateKey: secret("bundle-signing-key") }`, and
+  `{ enabled: true, privateKeyPath }` reads a file instead. Without `signing`,
+  deploy and doctor warn that bundles are unsigned; `{ enabled: false }` turns
+  signing off without the warning. `secrets issue bundle-signing-key` creates
+  a key and adds the shorthand to the config, and
+  `secrets put bundle-signing-key <pem>` stores a key the user has. Installed
+  apps reject bundles of a new key, so never replace one without explicit
+  rekey approval. `keys export-public` embeds the public key for a native
+  release.
+- Storing, issuing, replacing, and importing are mutations. Report where a key
+  is, never its value.
 
 ### Deletion and Storage Cleanup
 
@@ -257,6 +278,13 @@ separate mutation: run it only when requested, then rerun doctor. Native
 changes need a rebuild. Leave an issue with more than one remedy, such as
 `ORPHAN_PUBLIC_KEY`, to the user: removing a key turns off signature
 verification in the app. Never improvise a remedy doctor does not name.
+Doctor lists each `secret()` name the config reads and whether the
+environment, the `secrets` adapter, or nothing holds it. A missing name a build
+or deploy reads, such as a release variant's upload keystore, fails doctor with
+the `secrets put` command that imports it; the Google Play row then marks the
+package's upload keystore missing. Once `play-service-account` resolves, doctor
+checks that the key reaches each release package on Google Play, changing
+nothing. Without `signing`, it warns that bundles are unsigned.
 Obtain any server URL from trusted local config or the user. Do not infer approval
 to edit setup, credentials, dependencies, infrastructure, or deployments.
 
@@ -338,8 +366,8 @@ path. Verify permissions and ignore rules without exposing secret material.
   submissions, native build deletion, storing or issuing secrets, API key
   creation and revocation, Remote Config publishing and rollback, deletion, and
   pruning as mutations; generated files are writes.
-- Never start an Apple or Google sign-in, or type or relay a password or
-  two-factor code. The user runs sign-ins in their own terminal.
+- Never start an Apple sign-in, or type or relay a password or two-factor
+  code. The user runs sign-ins in their own terminal.
 - Open the local Console only through the link `console` prints; it carries
   that run's session.
 - Never request secrets in chat or arguments, print environments, dump sensitive
